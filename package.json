@@ -1,0 +1,16 @@
+{
+  "name": "tazkara",
+  "version": "1.0.0",
+  "description": "Full-stack ticketing platform — monorepo root",
+  "scripts": {
+    "install:all": "cd server && npm install && cd ../frontend && npm install",
+    "dev": "concurrently \"cd server && npm run dev\" \"cd frontend && npm run dev\"",
+    "dev:server": "cd server && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "start:server": "cd server && npm start",
+    "start:frontend": "cd frontend && npm start"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
