@@ -10,7 +10,7 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 import Navbar from '../components/Navbar';
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+const API = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 const CAT_TYPES = [
   { key: 'vip',     label: 'VIP',          color: '#d4a017', bg: 'rgba(212,160,23,0.08)',  border: 'rgba(212,160,23,0.25)' },

@@ -10,7 +10,7 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 import Navbar from '../../components/Navbar';
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+const API = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 const SEAT_TYPES = [
   { key: 'vip', label: 'VIP', priceKey: 'vipPrice', seatsKey: 'vipSeats', color: 'var(--gold)', bg: 'rgba(212,160,23,0.08)', border: 'rgba(212,160,23,0.25)', desc: 'Premium front-row experience' },

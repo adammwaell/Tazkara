@@ -9,7 +9,7 @@ import Navbar from '../components/Navbar';
 import EventCard from '../components/EventCard';
 import axios from 'axios';
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+const API = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 export default function Home() {
   const [events, setEvents] = useState([]);

@@ -6,7 +6,7 @@ import axios from 'axios';
 import Navbar from '../components/Navbar';
 import TicketCard from '../components/TicketCard';
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+const API = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 export default function Dashboard() {
   const router = useRouter();
