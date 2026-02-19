@@ -23,6 +23,7 @@ const TABS = [
   { key: 'orders',   label: '📋 Orders' },
   { key: 'events',   label: '🎭 Events' },
   { key: 'create',   label: '➕ Create Event' },
+  { key: 'scanner',  label: '📷 Scanner' },
   { key: 'access',   label: '🔑 Access Control' },
   { key: 'users',    label: '👥 Users' },
 ];
@@ -376,6 +377,7 @@ export default function Admin() {
   // Users state
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('tazkara_token') : null;
   const headers = { Authorization: `Bearer ${token}` };
@@ -383,14 +385,16 @@ export default function Admin() {
   useEffect(() => {
     const u = localStorage.getItem('tazkara_user');
     if (!u) { router.push('/login'); return; }
-    if (JSON.parse(u).role !== 'admin') { router.push('/'); return; }
+    const parsedUser = JSON.parse(u);
+    setCurrentUser(parsedUser);
+    if (parsedUser.role !== 'admin' && parsedUser.role !== 'superadmin') { router.push('/'); return; }
     fetchAll();
   }, []);
 
   const fetchAll = async () => {
     try {
       const [evR, ordR] = await Promise.all([
-        axios.get(`${API}/events`),
+        axios.get(`${API}/events/all`, { headers }),
         axios.get(`${API}/orders/all`, { headers }),
       ]);
       setEvents(evR.data.events || []);
@@ -430,6 +434,38 @@ export default function Admin() {
     } catch (e) {
       console.error(e);
       toast.error('Failed to update permissions');
+    }
+  };
+
+  // Super Admin: Promote user to admin
+  const promoteToAdmin = async (userId) => {
+    if (!confirm('Are you sure you want to promote this user to admin?')) return;
+    try {
+      await axios.put(`${API}/auth/users/${userId}/role`,
+        { role: 'admin' },
+        { headers }
+      );
+      setUsers(users.map(u => u._id === userId ? { ...u, role: 'admin' } : u));
+      toast.success('User promoted to admin');
+    } catch (e) {
+      console.error(e);
+      toast.error(e.response?.data?.message || 'Failed to promote user');
+    }
+  };
+
+  // Super Admin: Demote admin to user
+  const demoteToUser = async (userId) => {
+    if (!confirm('Are you sure you want to remove admin access from this user?')) return;
+    try {
+      await axios.put(`${API}/auth/users/${userId}/role`,
+        { role: 'user' },
+        { headers }
+      );
+      setUsers(users.map(u => u._id === userId ? { ...u, role: 'user' } : u));
+      toast.success('Admin demoted to user');
+    } catch (e) {
+      console.error(e);
+      toast.error(e.response?.data?.message || 'Failed to demote user');
     }
   };
 
@@ -749,8 +785,8 @@ export default function Admin() {
                   <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 22, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 28 }}>
                     {editingEventId ? 'Edit Event' : 'New Event'}
                   </h2>
-                  <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
+                  <form onSubmit={handleCreate} className="admin-grid-2" style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 18 }}>
                       {[['name','Event Name *','text','e.g. Summer Festival'],['date','Date & Time *','datetime-local',''],['venue','Venue *','text','e.g. Madison Square Garden'],['image','Image URL','url','https://…']].map(([k,l,t,p]) => (
                         <div key={k}>
                           <label className="tk-label">{l}</label>
@@ -759,7 +795,7 @@ export default function Admin() {
                       ))}
                     </div>
                     {createForm.image && (
-                      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 20, alignItems: 'start' }}>
+                      <div className="admin-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 20, alignItems: 'start' }}>
                         <div>
                           <label className="tk-label" style={{ marginBottom: 10 }}>Live Image Preview</label>
                           <div style={{ position: 'relative', height: 220, borderRadius: 16, overflow: 'hidden', background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
@@ -905,10 +941,26 @@ export default function Admin() {
               </motion.div>
             )}
 
+            {/* Scanner Tab - Links to /scanner */}
+            {tab === 'scanner' && (
+              <motion.div key="scanner" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 20, padding: '40px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 64, marginBottom: 20 }}>📷</div>
+                  <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 28, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 12 }}>QR Ticket Scanner</h2>
+                  <p style={{ fontSize: 15, color: 'var(--text-secondary)', marginBottom: 28, maxWidth: 400, margin: '0 auto 28px' }}>
+                    Scan tickets at venue entry points to validate attendee entry in real-time.
+                  </p>
+                  <a href="/scanner" className="btn-gold" style={{ display: 'inline-flex', padding: '14px 32px', fontSize: 16 }}>
+                    Open Scanner →
+                  </a>
+                </div>
+              </motion.div>
+            )}
+
             {/* ── ACCESS CONTROL ────────────────────────────────────── */}
             {tab === 'access' && (
               <motion.div key="access" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+                <div className="admin-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 24 }}>
 
                   {/* Info */}
                   <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: 28 }}>
@@ -1019,30 +1071,83 @@ export default function Admin() {
                               <td style={{ padding: '14px 16px', fontSize: 13 }}>
                                 <span style={{ 
                                   padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
-                                  background: user.role === 'admin' ? 'var(--gold-dim)' : 'var(--bg-secondary)',
-                                  color: user.role === 'admin' ? 'var(--gold)' : 'var(--text-secondary)'
+                                  background: user.role === 'superadmin' ? 'rgba(168,85,247,0.2)' : user.role === 'admin' ? 'var(--gold-dim)' : 'var(--bg-secondary)',
+                                  color: user.role === 'superadmin' ? '#a855f7' : user.role === 'admin' ? 'var(--gold)' : 'var(--text-secondary)'
                                 }}>
                                   {user.role}
                                 </span>
                               </td>
                               <td style={{ padding: '14px 16px', textAlign: 'center' }}>
-                                <button
-                                  onClick={() => toggleScannerAccess(user._id, user.permissions?.canScan)}
-                                  disabled={user.role === 'admin'}
-                                  style={{
-                                    padding: '6px 14px',
-                                    borderRadius: 6,
-                                    fontSize: 12,
-                                    fontWeight: 600,
-                                    cursor: user.role === 'admin' ? 'not-allowed' : 'pointer',
-                                    background: user.permissions?.canScan ? 'rgba(34,197,94,0.15)' : 'var(--bg-secondary)',
-                                    color: user.permissions?.canScan ? '#22c55e' : 'var(--text-muted)',
-                                    border: `1px solid ${user.permissions?.canScan ? 'rgba(34,197,94,0.3)' : 'var(--border)'}`,
-                                    opacity: user.role === 'admin' ? 0.5 : 1
-                                  }}
-                                >
-                                  {user.permissions?.canScan ? '✓ Enabled' : '○ Disabled'}
-                                </button>
+                                {currentUser?.role === 'superadmin' && user.role !== 'superadmin' ? (
+                                  <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                                    <button
+                                      onClick={() => toggleScannerAccess(user._id, user.permissions?.canScan)}
+                                      style={{
+                                        padding: '6px 14px',
+                                        borderRadius: 6,
+                                        fontSize: 12,
+                                        fontWeight: 600,
+                                        cursor: 'pointer',
+                                        background: user.permissions?.canScan ? 'rgba(34,197,94,0.15)' : 'var(--bg-secondary)',
+                                        color: user.permissions?.canScan ? '#22c55e' : 'var(--text-muted)',
+                                        border: `1px solid ${user.permissions?.canScan ? 'rgba(34,197,94,0.3)' : 'var(--border)'}`,
+                                      }}
+                                    >
+                                      {user.permissions?.canScan ? '✓ Scanner' : '○ Scanner'}
+                                    </button>
+                                    {user.role === 'user' ? (
+                                      <button
+                                        onClick={() => promoteToAdmin(user._id)}
+                                        style={{
+                                          padding: '6px 14px',
+                                          borderRadius: 6,
+                                          fontSize: 12,
+                                          fontWeight: 600,
+                                          cursor: 'pointer',
+                                          background: 'var(--gold-dim)',
+                                          color: 'var(--gold)',
+                                          border: '1px solid var(--border-gold)',
+                                        }}
+                                      >
+                                        ⬆ Admin
+                                      </button>
+                                    ) : user.role === 'admin' ? (
+                                      <button
+                                        onClick={() => demoteToUser(user._id)}
+                                        style={{
+                                          padding: '6px 14px',
+                                          borderRadius: 6,
+                                          fontSize: 12,
+                                          fontWeight: 600,
+                                          cursor: 'pointer',
+                                          background: 'rgba(239,68,68,0.1)',
+                                          color: '#f87171',
+                                          border: '1px solid rgba(239,68,68,0.2)',
+                                        }}
+                                      >
+                                        ⬇ User
+                                      </button>
+                                    ) : null}
+                                  </div>
+                                ) : (
+                                  <button
+                                    onClick={() => toggleScannerAccess(user._id, user.permissions?.canScan)}
+                                    disabled={user.role === 'admin' || user.role === 'superadmin'}
+                                    style={{
+                                      padding: '6px 14px',
+                                      borderRadius: 6,
+                                      fontSize: 12,
+                                      fontWeight: 600,
+                                      cursor: (user.role === 'admin' || user.role === 'superadmin') ? 'not-allowed' : 'pointer',
+                                      background: user.permissions?.canScan ? 'rgba(34,197,94,0.15)' : 'var(--bg-secondary)',
+                                      color: user.permissions?.canScan ? '#22c55e' : 'var(--text-muted)',
+                                      border: `1px solid ${user.permissions?.canScan ? 'rgba(34,197,94,0.3)' : 'var(--border)'}`,
+                                      opacity: (user.role === 'admin' || user.role === 'superadmin') ? 0.5 : 1
+                                    }}
+                                  >
+                                    {user.permissions?.canScan ? '✓ Enabled' : '○ Disabled'}
+                                  </button>
+                                )}
                               </td>
                             </tr>
                           ))}

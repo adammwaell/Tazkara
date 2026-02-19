@@ -28,8 +28,8 @@ export default function Scanner() {
 
   // Check auth on mount
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const userData = localStorage.getItem('user');
+    const token = localStorage.getItem('tazkara_token');
+    const userData = localStorage.getItem('tazkara_user');
     
     if (!token || !userData) {
       router.push('/login');
@@ -39,7 +39,7 @@ export default function Scanner() {
     const parsedUser = JSON.parse(userData);
     
     // Check if user has scanner permission (admin always has access)
-    if (parsedUser.role !== 'admin' && parsedUser.permissions?.canScan !== true) {
+    if (parsedUser.role !== 'admin' && parsedUser.role !== 'superadmin' && parsedUser.permissions?.canScan !== true) {
       toast.error('You do not have scanner access');
       router.push('/dashboard');
       return;
@@ -160,7 +160,7 @@ export default function Scanner() {
   const validateTicket = async (code) => {
     setScanning(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('tazkara_token');
       const response = await axios.post(
         `${API}/tickets/validate`,
         { ticketCode: code },

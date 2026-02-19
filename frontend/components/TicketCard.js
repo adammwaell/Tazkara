@@ -12,6 +12,7 @@ const TYPE_CONFIG = {
 };
 
 const STATUS_CONFIG = {
+  unused: { label: 'Unused', color: '#4ade80' },
   active: { label: 'Active', color: '#4ade80' },
   used: { label: 'Used', color: 'var(--text-muted)' },
   cancelled: { label: 'Cancelled', color: '#f87171' },
@@ -37,8 +38,8 @@ export default function TicketCard({ ticket }) {
         {/* Top accent line */}
         <div style={{ height: 3, background: type.color, opacity: 0.8 }} />
 
-        <div style={{ padding: '20px 24px' }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
+        <div style={{ padding: '16px 16px' }}>
+          <div className="ticket-card-layout" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             {/* Left: ticket info */}
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -97,14 +98,14 @@ export default function TicketCard({ ticket }) {
               <div style={{ width: 1, height: 80, borderLeft: '2px dashed var(--border)' }} />
               <button
                 onClick={() => setShowQR(!showQR)}
-                disabled={status !== 'active'}
+                disabled={status === 'used' || status === 'cancelled'}
                 style={{
                   display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
                   padding: '10px 14px', borderRadius: 10,
                   background: showQR ? 'var(--gold-dim)' : 'var(--bg-secondary)',
                   border: `1px solid ${showQR ? 'var(--border-gold)' : 'var(--border)'}`,
-                  cursor: status === 'active' ? 'pointer' : 'not-allowed',
-                  opacity: status !== 'active' ? 0.4 : 1,
+                  cursor: (status === 'unused' || status === 'active') ? 'pointer' : 'not-allowed',
+                  opacity: (status === 'used' || status === 'cancelled') ? 0.4 : 1,
                   transition: 'all 200ms',
                   minWidth: 64,
                 }}
@@ -120,7 +121,7 @@ export default function TicketCard({ ticket }) {
 
         {/* QR expand */}
         <AnimatePresence>
-          {showQR && qrCode && (
+          {showQR && qrCode && (status === 'unused' || status === 'active') && (
             <motion.div
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
@@ -134,6 +135,21 @@ export default function TicketCard({ ticket }) {
                 </div>
                 <p style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>
                   Present this QR code at the entrance
+                </p>
+              </div>
+            </motion.div>
+          )}
+          {showQR && (status === 'used' || status === 'cancelled') && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              transition={{ duration: 0.25 }}
+              style={{ overflow: 'hidden', borderTop: '1px dashed var(--border)', background: 'rgba(239,68,68,0.05)' }}
+            >
+              <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+                <span style={{ fontSize: 40 }}>❌</span>
+                <p style={{ fontSize: 14, color: '#f87171', textAlign: 'center', fontWeight: 600 }}>
+                  This ticket has already been scanned.
                 </p>
               </div>
             </motion.div>

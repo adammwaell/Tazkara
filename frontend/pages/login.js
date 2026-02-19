@@ -5,6 +5,7 @@
 
 import { useState } from 'react';
 import Head from 'next/head';
+import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { motion } from 'framer-motion';
 import { useGoogleLogin } from '@react-oauth/google';
@@ -54,7 +55,7 @@ export default function Login() {
       localStorage.setItem('tazkara_token', token);
       localStorage.setItem('tazkara_user', JSON.stringify(user));
       toast.success(`Welcome, ${user.name.split(' ')[0]}!`);
-      router.push(user.role === 'admin' ? '/admin' : '/');
+      router.push(user.role === 'admin' || user.role === 'superadmin' ? '/admin' : '/');
     } catch (err) {
       const data = err.response?.data;
       if (data?.code === 'ACCESS_DENIED') {
@@ -85,7 +86,7 @@ export default function Login() {
       localStorage.setItem('tazkara_token', token);
       localStorage.setItem('tazkara_user', JSON.stringify(user));
       toast.success(`Welcome back, ${user.name.split(' ')[0]}!`);
-      router.push(user.role === 'admin' ? '/admin' : '/');
+      router.push(user.role === 'admin' || user.role === 'superadmin' ? '/admin' : '/');
     } catch (err) {
       const data = err.response?.data;
       if (data?.code === 'ACCESS_DENIED') {
@@ -146,11 +147,11 @@ export default function Login() {
             </div>
 
             {/* Card */}
-            <div style={{
+            <div className="login-card" style={{
               background: 'var(--bg-card)',
               border: '1px solid var(--border)',
               borderRadius: 24,
-              padding: '40px 36px',
+              padding: '32px 24px',
               boxShadow: '0 16px 64px rgba(0,0,0,0.5)',
             }}>
 
@@ -268,6 +269,13 @@ export default function Login() {
 
             <p style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-muted)', marginTop: 20 }}>
               By signing in you agree to our Terms of Service
+            </p>
+
+            <p style={{ textAlign: 'center', fontSize: 13, color: 'var(--text-muted)', marginTop: 16 }}>
+              Don't have an account?{' '}
+              <Link href="/register" style={{ color: 'var(--gold)', textDecoration: 'none', fontWeight: 600 }}>
+                Create one
+              </Link>
             </p>
           </motion.div>
         </div>

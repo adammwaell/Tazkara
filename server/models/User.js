@@ -21,7 +21,7 @@ const userSchema = new mongoose.Schema(
     provider: { type: String, enum: ['google', 'local'], default: 'google' },
     password: { type: String, select: false }, // optional — only for email/password users
     picture:  { type: String, default: '' },
-    role:     { type: String, enum: ['user', 'admin'], default: 'user' },
+    role:     { type: String, enum: ['user', 'admin', 'superadmin'], default: 'user' },
     isApproved: { type: Boolean, default: true },
     lastLogin:  { type: Date },
     permissions: {

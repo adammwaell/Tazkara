@@ -107,7 +107,7 @@ export default function EventDetail() {
         <Navbar />
 
         {/* Hero image */}
-        <div style={{ position: 'relative', height: 420, overflow: 'hidden', background: 'var(--bg-secondary)' }}>
+        <div style={{ position: 'relative', height: 'clamp(200px, 40vw, 420px)', overflow: 'hidden', background: 'var(--bg-secondary)' }}>
           {event.image ? (
             <img
               src={event.image}
@@ -137,8 +137,8 @@ export default function EventDetail() {
         </div>
 
         {/* Content */}
-        <div style={{ maxWidth: 1200, margin: '-80px auto 0', padding: '0 24px 96px', position: 'relative', zIndex: 10 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 40, alignItems: 'start' }}>
+        <div style={{ maxWidth: 1200, margin: '-60px auto 0', padding: '0 16px 60px', position: 'relative', zIndex: 10 }}>
+          <div className="grid-layout" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 32 }}>
 
             {/* ── Left: Event info ──────────────────────────────── */}
             <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }}>

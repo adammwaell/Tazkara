@@ -53,7 +53,8 @@ export default function Dashboard() {
           {/* Stats */}
           <motion.div
             initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-            style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 40 }}
+            className="stats-grid"
+            style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16, marginBottom: 40 }}
           >
             {[
               { label: 'Total Tickets', value: stats.total, color: 'var(--text-primary)' },

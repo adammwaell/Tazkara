@@ -29,6 +29,20 @@ router.get('/', async (req, res) => {
   }
 });
 
+// ── GET /api/events/all ─────────────────────────────────────────────────────────
+// Admin endpoint: returns ALL events (including inactive)
+router.get('/all', protect, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin' && req.user.role !== 'superadmin') {
+      return res.status(403).json({ success: false, message: 'Admin only' });
+    }
+    const events = await Event.find().sort({ date: -1 }).populate('createdBy', 'name picture');
+    res.json({ success: true, count: events.length, events });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // ── GET /api/events/:id ──────────────────────────────────────────────────────
 router.get('/:id', async (req, res) => {
   try {

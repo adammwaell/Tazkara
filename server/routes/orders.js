@@ -20,42 +20,177 @@ const router = express.Router();
 const APP_URL = process.env.APP_URL || process.env.CLIENT_URL || 'http://localhost:3000';
 
 // ── Email helper ─────────────────────────────────────────────────────────────
-async function sendTicketEmail(user, event, tickets) {
+async function sendTicketEmail(user, event, tickets, order) {
   try {
-    const account = await nodemailer.createTestAccount();
+    console.log('[email] Starting email send to:', user.email);
+    
+    if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+      console.error('[email] Missing SMTP config in .env');
+      return;
+    }
+
+    // Use Gmail SMTP from environment
     const transporter = nodemailer.createTransport({
-      host: 'smtp.ethereal.email', port: 587, secure: false,
-      auth: { user: account.user, pass: account.pass },
+      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      port: parseInt(process.env.SMTP_PORT) || 587,
+      secure: false,
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+      tls: {
+        rejectUnauthorized: false,
+      },
     });
 
-    const list = tickets.map((t, i) =>
-      `<p>Ticket ${i+1}: <strong>${t.ticketCode}</strong> — ${t.seatType}</p>`
+    // Prepare QR attachments as CID embedded images
+    const attachments = tickets.map((t, i) => {
+      // Extract base64 data from QR code (remove data:image/png;base64, prefix)
+      const base64Data = t.qrCode.replace(/^data:image\/\w+;base64,/, '');
+      return {
+        filename: `ticket-${i + 1}-qr.png`,
+        content: Buffer.from(base64Data, 'base64'),
+        cid: `ticketqr-${i}`,
+        encoding: 'base64'
+      };
+    });
+
+    // Build QR images using CID references
+    const qrImages = tickets.map((t, i) => 
+      `<div style="background:#fafafa;border:1px solid #e5e5e5;border-radius:8px;padding:24px;margin:20px 0;text-align:center;">
+        <p style="margin:0 0 16px 0;color:#333;font-size:14px;font-weight:600;">Ticket #${i + 1}</p>
+        <img src="cid:ticketqr-${i}" width="220" height="220" style="display:block;margin:0 auto;background:#ffffff;padding:12px;border-radius:10px;" alt="QR Code" />
+        <p style="margin:12px 0 0 0;font-size:10px;color:#888;font-family:monospace;">${t._id}</p>
+      </div>`
+    ).join('');
+
+    const ticketList = tickets.map((t, i) =>
+      `<tr style="border-bottom:1px solid #eee;">
+        <td style="padding:8px;">${i + 1}</td>
+        <td style="padding:8px;">${user.name}</td>
+        <td style="padding:8px;">${t.seatType}</td>
+        <td style="padding:8px;">${order?.waveName || 'General'}</td>
+      </tr>`
     ).join('');
 
     const info = await transporter.sendMail({
-      from: '"AdamTickets 🎟" <no-reply@adamtickets.com>',
+      from: `"Tazkara" <${process.env.EMAIL_FROM || process.env.SMTP_USER}>`,
       to: user.email,
-      subject: `Your tickets for ${event.name}`,
+      subject: `Your Tickets for ${event.name}`,
+      attachments: attachments,
       html: `
-        <div style="font-family:sans-serif;max-width:600px;margin:auto;background:#0a0a08;color:#f0efe8;padding:40px;border-radius:12px">
-          <h2 style="color:#d4a017">🎉 Booking Confirmed</h2>
-          <p>Hi <strong>${user.name}</strong>,</p>
-          <p>Your tickets for <strong>${event.name}</strong> at <strong>${event.venue}</strong> are confirmed.</p>
-          ${list}
-          <p style="margin-top:24px;color:#a8a89a;font-size:13px">Present your QR code at the venue entrance.</p>
-        </div>
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background:#f0f2f5;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f2f5;padding:40px 20px;">
+            <tr>
+              <td align="center">
+                <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);">
+                  <!-- Header -->
+                  <tr>
+                    <td style="background:linear-gradient(135deg,#1a1a2e 0%,#2d2d4a 100%);padding:40px 30px;text-align:center;">
+                      <h1 style="margin:0;color:#ffffff;font-size:32px;font-weight:700;">Tazkara</h1>
+                      <p style="margin:10px 0 0 0;color:rgba(255,255,255,0.8);font-size:16px;">Your Tickets Are Ready!</p>
+                    </td>
+                  </tr>
+                  
+                  <!-- Thank You -->
+                  <tr>
+                    <td style="padding:30px 30px 10px 30px;text-align:center;">
+                      <p style="margin:0;font-size:18px;color:#333;">Hi <strong>${user.name}</strong>!</p>
+                      <p style="margin:10px 0 0 0;color:#666;font-size:15px;">Thank you for your purchase. Your tickets are confirmed!</p>
+                    </td>
+                  </tr>
+                  
+                  <!-- Event Details -->
+                  <tr>
+                    <td style="padding:20px 30px;">
+                      <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8f9fa;border-radius:12px;border:1px solid #e9ecef;">
+                        <tr>
+                          <td style="padding:20px;">
+                            <p style="margin:0 0 8px 0;color:#999;font-size:12px;text-transform:uppercase;letter-spacing:1px;">EVENT</p>
+                            <p style="margin:0 0 15px 0;color:#1a1a2e;font-size:20px;font-weight:700;">${event.name}</p>
+                            
+                            <table width="100%" cellpadding="0" cellspacing="0">
+                              <tr>
+                                <td style="padding:8px 0;border-top:1px solid #e9ecef;">
+                                  <p style="margin:0;color:#666;font-size:14px;"><strong>Date:</strong> ${new Date(event.date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                                </td>
+                              </tr>
+                              <tr>
+                                <td style="padding:8px 0;border-top:1px solid #e9ecef;">
+                                  <p style="margin:0;color:#666;font-size:14px;"><strong>Venue:</strong> ${event.venue}</p>
+                                </td>
+                              </tr>
+                              <tr>
+                                <td style="padding:8px 0;border-top:1px solid #e9ecef;">
+                                  <p style="margin:0;color:#666;font-size:14px;"><strong>Seat:</strong> ${tickets[0]?.seatType || 'N/A'}</p>
+                                </td>
+                              </tr>
+                              <tr>
+                                <td style="padding:8px 0;border-top:1px solid #e9ecef;">
+                                  <p style="margin:0;color:#666;font-size:14px;"><strong>Wave:</strong> ${order?.waveName || 'General'}</p>
+                                </td>
+                              </tr>
+                              <tr>
+                                <td style="padding:8px 0;border-top:1px solid #e9ecef;">
+                                  <p style="margin:0;color:#666;font-size:14px;"><strong>Quantity:</strong> ${tickets.length} ticket(s)</p>
+                                </td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                  
+                  <!-- QR Codes -->
+                  <tr>
+                    <td style="padding:10px 30px 20px 30px;">
+                      <p style="margin:0 0 15px 0;color:#1a1a2e;font-size:16px;font-weight:600;text-align:center;">Your QR Codes</p>
+                      ${qrImages}
+                    </td>
+                  </tr>
+                  
+                  <!-- Instructions -->
+                  <tr>
+                    <td style="padding:20px 30px;background:#fff3cd;border-top:1px solid #ffeeba;">
+                      <p style="margin:0;color:#856404;font-size:14px;text-align:center;">
+                        <strong>Important:</strong> Please present your QR code at the venue entrance
+                      </p>
+                    </td>
+                  </tr>
+                  
+                  <!-- Order ID -->
+                  <tr>
+                    <td style="padding:20px 30px;text-align:center;">
+                      <p style="margin:0;color:#999;font-size:12px;">Order ID: <span style="font-family:monospace;">${order?._id || 'N/A'}</span></p>
+                    </td>
+                  </tr>
+                  
+                  <!-- Footer -->
+                  <tr>
+                    <td style="background:#1a1a2e;padding:30px;text-align:center;">
+                      <p style="margin:0 0 10px 0;color:rgba(255,255,255,0.6);font-size:13px;">Thank you for choosing Tazkara!</p>
+                      <p style="margin:0;color:rgba(255,255,255,0.4);font-size:11px;">© 2026 Tazkara. All rights reserved.</p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </body>
+        </html>
       `,
-      attachments: tickets.map((t, i) => ({
-        filename: `ticket-${i+1}.png`,
-        content: t.qrCode.split('base64,')[1],
-        encoding: 'base64',
-        contentType: 'image/png',
-      })),
     });
 
-    console.log('📧 Email preview:', nodemailer.getTestMessageUrl(info));
+    console.log('📧 Email sent:', info.messageId);
   } catch (err) {
-    console.error('Email error (non-fatal):', err.message);
+    console.error('[email] FATAL ERROR:', err.message);
   }
 }
 
@@ -205,7 +340,16 @@ router.post('/', protect, async (req, res) => {
     for (let i = 0; i < qty; i++) {
       const ticketCode = `AT-${Date.now()}-${Math.random().toString(36).substr(2,6).toUpperCase()}`;
       const validateUrl = `${APP_URL}/validate/${ticketCode}`;
-      const qrCode = await QRCode.toDataURL(validateUrl);
+      const qrCode = await QRCode.toDataURL(validateUrl, {
+        errorCorrectionLevel: 'H',
+        type: 'image/png',
+        margin: 2,
+        width: 300,
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF'
+        }
+      });
       ticketDocs.push({ userId: req.user._id, eventId, orderId: order._id, seatType, qrCode, ticketCode, status: 'unused' });
     }
 
@@ -213,7 +357,7 @@ router.post('/', protect, async (req, res) => {
     await session.commitTransaction();
 
     // Non-blocking email
-    sendTicketEmail(req.user, event, tickets);
+    sendTicketEmail(req.user, event, tickets, order);
 
     res.status(201).json({
       success: true,

@@ -19,6 +19,9 @@ const { protect, adminOnly } = require('../middleware/authMiddleware');
 const router = express.Router();
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
+// Super Admin email - hardcoded for security
+const SUPER_ADMIN_EMAIL = 'dodogomma2015@gmail.com';
+
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
 const signToken = (id) =>
@@ -76,6 +79,10 @@ async function upsertGoogleUser({ googleId, email, name, picture }) {
   const adminEmails = (process.env.ADMIN_EMAILS || '')
     .split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
   const isAdminEmail = adminEmails.includes(email.toLowerCase());
+  
+  // Check for Super Admin - cannot be demoted or modified
+  const isSuperAdmin = email.toLowerCase() === SUPER_ADMIN_EMAIL;
+  console.log('[upsertGoogleUser] Checking:', { email, isSuperAdmin, isAdminEmail, SUPER_ADMIN_EMAIL });
 
   let user = await User.findOne({ googleId });
 
@@ -85,7 +92,15 @@ async function upsertGoogleUser({ googleId, email, name, picture }) {
   if (!user) {
     // Brand new user
     const access = await checkEmailAccess(email);
-    const role = isAdminEmail ? 'admin' : (access.role || 'user');
+    // Super Admin gets superadmin role, otherwise use admin email or access role
+    let role = 'user';
+    if (isSuperAdmin) {
+      role = 'superadmin';
+    } else if (isAdminEmail) {
+      role = 'admin';
+    } else if (access.role) {
+      role = access.role;
+    }
     user = await User.create({
       googleId,
       name,
@@ -103,7 +118,14 @@ async function upsertGoogleUser({ googleId, email, name, picture }) {
     user.picture   = picture || user.picture;
     user.lastLogin = new Date();
     if (!user.provider) user.provider = user.password ? 'local' : 'google';
-    if (isAdminEmail && user.role !== 'admin') user.role = 'admin';
+    
+    // Super Admin cannot be demoted, only promoted if not already
+    if (isSuperAdmin && user.role !== 'superadmin') {
+      user.role = 'superadmin';
+    } else if (isAdminEmail && user.role === 'user') {
+      // Only promote users to admin, don't demote existing admins
+      user.role = 'admin';
+    }
     await user.save();
   }
 
@@ -134,6 +156,14 @@ async function finishGoogleAuth(res, { googleId, email, name, picture, email_ver
 
   // 4. Upsert user (safe for legacy records)
   const user = await upsertGoogleUser({ googleId, email, name, picture });
+  console.log('[auth] User upserted:', { email, role: user.role, isSuperAdmin: email.toLowerCase() === SUPER_ADMIN_EMAIL });
+
+  // FINAL SAFETY CHECK: Ensure superadmin email always has superadmin role
+  if (email.toLowerCase() === SUPER_ADMIN_EMAIL && user.role !== 'superadmin') {
+    console.log('[auth] Correcting role to superadmin for:', email);
+    user.role = 'superadmin';
+    await user.save();
+  }
 
   if (!user.isApproved) {
     return res.status(403).json({ success: false, message: 'Account pending approval' });
@@ -141,12 +171,108 @@ async function finishGoogleAuth(res, { googleId, email, name, picture, email_ver
 
   // 5. Issue JWT
   const token = signToken(user._id);
+  // Refresh user from DB to get latest role (in case it was corrected above)
+  const updatedUser = await User.findById(user._id);
   return res.json({
     success: true,
     token,
-    user: { id: user._id, name: user.name, email: user.email, picture: user.picture, role: user.role },
+    user: { id: updatedUser._id, name: updatedUser.name, email: updatedUser.email, picture: updatedUser.picture, role: updatedUser.role, permissions: updatedUser.permissions },
   });
 }
+
+/**
+ * Validate password strength
+ * Requirements:
+ * - At least 8 characters
+ * - One uppercase letter
+ * - One lowercase letter
+ * - One number
+ * - One special character
+ */
+function validatePasswordStrength(password) {
+  const errors = [];
+  if (password.length < 8) errors.push('At least 8 characters');
+  if (!/[A-Z]/.test(password)) errors.push('One uppercase letter');
+  if (!/[a-z]/.test(password)) errors.push('One lowercase letter');
+  if (!/\d/.test(password)) errors.push('One number');
+  if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) errors.push('One special character');
+  return errors;
+}
+
+// ── POST /api/auth/register — email/password registration with strong validation ────
+router.post('/register', async (req, res) => {
+  try {
+    const { name, email, password, confirmPassword } = req.body;
+
+    // Validate required fields
+    if (!name || !email || !password || !confirmPassword) {
+      return res.status(400).json({ success: false, message: 'All fields are required' });
+    }
+
+    // Validate email format
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ success: false, message: 'Invalid email format' });
+    }
+
+    // Validate password strength
+    const pwdErrors = validatePasswordStrength(password);
+    if (pwdErrors.length > 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Password is too weak: ' + pwdErrors.join(', ')
+      });
+    }
+
+    // Validate password match
+    if (password !== confirmPassword) {
+      return res.status(400).json({ success: false, message: 'Passwords do not match' });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    
+    // Check if user already exists
+    const exists = await User.findOne({ email: normalizedEmail });
+    if (exists) {
+      return res.status(409).json({ success: false, message: 'Email already registered' });
+    }
+
+    // Check email access (for whitelist/domain modes)
+    const access = await checkEmailAccess(normalizedEmail);
+    if (!access.allowed) {
+      return res.status(403).json({
+        success: false,
+        message: access.reason || 'Access denied',
+        code: 'ACCESS_DENIED',
+      });
+    }
+
+    // Determine role
+    const adminEmails = (process.env.ADMIN_EMAILS || '')
+      .split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+    const role = adminEmails.includes(normalizedEmail) ? 'admin' : (access.role || 'user');
+
+    // Create new user
+    const user = await User.create({
+      name: name.trim(),
+      email: normalizedEmail,
+      password,
+      role,
+      provider: 'local',
+      isApproved: true,
+    });
+
+    const token = signToken(user._id);
+    res.status(201).json({
+      success: true,
+      message: 'Account created successfully',
+      token,
+      user: { id: user._id, name: user.name, email: user.email, picture: user.picture, role: user.role },
+    });
+  } catch (err) {
+    console.error('[auth/register]', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
 
 // ── POST /api/auth/signup — email/password registration ──────────────────────
 router.post('/signup', async (req, res) => {
@@ -234,6 +360,13 @@ router.post('/login', async (req, res) => {
     if (!user.isApproved)
       return res.status(403).json({ success: false, message: 'Account not approved' });
 
+    // Check for Super Admin - auto-promote on login
+    const isSuperAdmin = email.toLowerCase() === SUPER_ADMIN_EMAIL;
+    if (isSuperAdmin && user.role !== 'superadmin') {
+      user.role = 'superadmin';
+      await user.save();
+    }
+
     user.lastLogin = new Date();
     await user.save();
 
@@ -241,7 +374,7 @@ router.post('/login', async (req, res) => {
     res.json({
       success: true,
       token,
-      user: { id: user._id, name: user.name, email: user.email, picture: user.picture, role: user.role },
+      user: { id: user._id, name: user.name, email: user.email, picture: user.picture, role: user.role, permissions: user.permissions },
     });
   } catch (err) {
     console.error('[auth/login]', err.message);
@@ -289,13 +422,17 @@ router.post('/google-access', async (req, res) => {
     const tokenInfoRes = await fetch(tokenInfoUrl);
     const tokenInfo    = await tokenInfoRes.json();
 
+    console.log('[auth/google-access] tokenInfo:', tokenInfo);
+
     if (tokenInfo.error) {
-      return res.status(401).json({ success: false, message: 'Invalid or expired Google token' });
+      return res.status(401).json({ success: false, message: 'Invalid or expired Google token', error: tokenInfo.error });
     }
 
     // For access tokens: check azp (authorized party) = our client ID
     // azp is set when the token was requested with an OAuth client
     const clientId = process.env.GOOGLE_CLIENT_ID;
+    console.log('[auth/google-access] Checking azp/aud:', { azp: tokenInfo.azp, aud: tokenInfo.aud, clientId });
+    
     if (tokenInfo.azp !== clientId && tokenInfo.aud !== clientId) {
       console.error('[auth/google-access] azp mismatch:', { azp: tokenInfo.azp, aud: tokenInfo.aud, clientId });
       return res.status(401).json({ success: false, message: 'Token not issued for this application' });
@@ -392,6 +529,160 @@ router.get('/users', protect, adminOnly, async (req, res) => {
   try {
     const users = await User.find({}).select('-password').sort({ createdAt: -1 });
     res.json({ success: true, users });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ── SUPER ADMIN: Update user role ──────────────────────────────────────────
+// Only superadmin can change roles
+router.put('/users/:id/role', protect, async (req, res) => {
+  try {
+    // Check if current user is superadmin
+    if (req.user.role !== 'superadmin') {
+      return res.status(403).json({ success: false, message: 'Only superadmin can change user roles' });
+    }
+
+    const { id } = req.params;
+    const { role, permissions } = req.body;
+
+    // Find target user
+    const targetUser = await User.findById(id);
+    if (!targetUser) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Prevent modifying superadmin
+    if (targetUser.role === 'superadmin') {
+      return res.status(403).json({ success: false, message: 'Cannot modify superadmin account' });
+    }
+
+    // Validate role
+    const validRoles = ['user', 'admin', 'superadmin'];
+    if (role && !validRoles.includes(role)) {
+      return res.status(400).json({ success: false, message: 'Invalid role' });
+    }
+
+    // Update role if provided
+    if (role) {
+      targetUser.role = role;
+    }
+
+    // Update permissions if provided (for scanner access)
+    if (permissions !== undefined) {
+      targetUser.permissions = { ...targetUser.permissions, canScan: permissions.canScan };
+    }
+
+    await targetUser.save();
+
+    res.json({ success: true, message: 'User updated successfully', user: targetUser });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ── ADMIN: Update user permissions (scanner access) ─────────────────────────
+// Admin can grant scanner access, superadmin can do everything
+router.put('/users/:id/permissions', protect, async (req, res) => {
+  try {
+    // Only admin and superadmin can modify permissions
+    if (req.user.role !== 'admin' && req.user.role !== 'superadmin') {
+      return res.status(403).json({ success: false, message: 'Insufficient permissions' });
+    }
+
+    const { id } = req.params;
+    const { canScan } = req.body;
+
+    // Find target user
+    const targetUser = await User.findById(id);
+    if (!targetUser) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Prevent modifying superadmin
+    if (targetUser.role === 'superadmin') {
+      return res.status(403).json({ success: false, message: 'Cannot modify superadmin permissions' });
+    }
+
+    // Admin can only grant scanner, not remove admin roles
+    if (req.user.role === 'admin' && targetUser.role === 'admin') {
+      return res.status(403).json({ success: false, message: 'Admin cannot modify other admins' });
+    }
+
+    // Update permissions
+    if (typeof canScan === 'boolean') {
+      targetUser.permissions = { ...targetUser.permissions, canScan };
+      await targetUser.save();
+    }
+
+    res.json({ success: true, message: 'Permissions updated successfully', user: targetUser });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ── CHANGE PASSWORD (authenticated user) ───────────────────────────────────────
+router.post('/change-password', protect, async (req, res) => {
+  try {
+    const { oldPassword, newPassword, confirmPassword } = req.body;
+    
+    // Validate inputs
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      return res.status(400).json({ success: false, message: 'All password fields are required' });
+    }
+    
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ success: false, message: 'Passwords do not match' });
+    }
+    
+    // Validate password strength on backend
+    const passwordValidation = validatePasswordStrength(newPassword);
+    if (!passwordValidation.valid) {
+      return res.status(400).json({ success: false, message: passwordValidation.message });
+    }
+    
+    // Get user from database
+    const user = await User.findById(req.user._id);
+    
+    // Check if user has a password (Google OAuth users may not)
+    if (!user.password) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Cannot change password for Google OAuth accounts' 
+      });
+    }
+    
+    // Verify old password
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ success: false, message: 'Current password is incorrect' });
+    }
+    
+    // Check if new password is same as old password
+    const isSamePassword = await bcrypt.compare(newPassword, user.password);
+    if (isSamePassword) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'New password must be different from the current password' 
+      });
+    }
+    
+    // Hash new password
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(newPassword, salt);
+    await user.save();
+    
+    res.json({ success: true, message: 'Password updated successfully' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ── GET CURRENT USER PROFILE ───────────────────────────────────────────────────
+router.get('/me', protect, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select('-password');
+    res.json({ success: true, user });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

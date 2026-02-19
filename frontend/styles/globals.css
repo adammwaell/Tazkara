@@ -23,17 +23,32 @@
 
 .light {
   --bg-primary: #f5f4ef;
-  --bg-secondary: #eeede6;
+  --bg-secondary: #e8e7e0;
   --bg-card: #ffffff;
   --bg-card-hover: #f9f8f3;
-  --border: rgba(0,0,0,0.08);
-  --border-gold: rgba(180,130,10,0.3);
+  --border: rgba(0,0,0,0.1);
+  --border-gold: rgba(180,130,10,0.4);
   --text-primary: #1a1a14;
-  --text-secondary: #606058;
-  --text-muted: #a8a89a;
+  --text-secondary: #4a4a40;
+  --text-muted: #7a7a70;
   --gold: #b8860b;
   --gold-light: #d4a017;
-  --gold-dim: rgba(180,130,10,0.08);
+  --gold-dim: rgba(180,130,10,0.1);
+}
+
+/* Light mode card fixes */
+.light .tk-card {
+  box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+}
+.light .tk-card:hover {
+  box-shadow: 0 16px 48px rgba(0,0,0,0.12);
+}
+
+.light .btn-gold {
+  box-shadow: 0 4px 12px rgba(180,130,10,0.25);
+}
+.light .btn-gold:hover {
+  box-shadow: 0 8px 24px rgba(180,130,10,0.35);
 }
 
 /* ── Base ──────────────────────────────────────────────────────────────────── */
@@ -50,6 +65,7 @@ body {
   transition: background-color var(--transition), color var(--transition);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
 }
 
 /* ── Reusable Components ───────────────────────────────────────────────────── */
@@ -77,7 +93,7 @@ body {
     justify-content: center;
     gap: 8px;
     background: var(--gold);
-    color: #0a0a08;
+    color: var(--bg-primary);
     font-family: 'DM Sans', sans-serif;
     font-weight: 600;
     font-size: 14px;
@@ -279,4 +295,49 @@ body {
 @keyframes pulse-gold {
   0%, 100% { box-shadow: 0 0 0 0 rgba(212,160,23,0.3); }
   50% { box-shadow: 0 0 0 8px rgba(212,160,23,0); }
+}
+
+/* ── Responsive Grid ───────────────────────────────────────────────────── */
+@media (min-width: 768px) {
+  .grid-layout {
+    grid-template-columns: 1fr 380px !important;
+    gap: 40px !important;
+    align-items: start;
+  }
+  .stats-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+}
+
+.stats-grid {
+  grid-template-columns: 1fr;
+}
+
+/* ── Ticket Card Responsive ───────────────────────────────────────────── */
+@media (min-width: 768px) {
+  .ticket-card-layout {
+    flex-direction: row !important;
+    align-items: flex-start !important;
+  }
+}
+
+.login-card {
+  padding: 32px 24px !important;
+}
+
+@media (min-width: 768px) {
+  .login-card {
+    padding: 40px 36px !important;
+  }
+}
+
+/* ── Admin Grids ─────────────────────────────────────────────────────────── */
+.admin-grid-2 {
+  grid-template-columns: 1fr !important;
+}
+
+@media (min-width: 768px) {
+  .admin-grid-2 {
+    grid-template-columns: 1fr 1fr !important;
+  }
 }

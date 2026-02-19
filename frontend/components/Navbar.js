@@ -34,6 +34,7 @@ export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [isDark, setIsDark] = useState(true);
   const [scrolled, setScrolled] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem('tazkara_user');
@@ -43,7 +44,16 @@ export default function Navbar() {
 
     const handleScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+
+    // Check for mobile
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('resize', checkMobile);
+    };
   }, [router.pathname]);
 
   const toggleTheme = () => {
@@ -68,7 +78,9 @@ export default function Navbar() {
   const navLinks = [
     { href: '/', label: 'Events' },
     ...(user ? [{ href: '/dashboard', label: 'My Tickets' }] : []),
-    ...(user?.role === 'admin' ? [{ href: '/admin', label: 'Admin', isAdmin: true }] : []),
+    ...(user ? [{ href: '/profile', label: 'Profile' }] : []),
+    ...(user?.role === 'admin' || user?.role === 'superadmin' || user?.permissions?.canScan ? [{ href: '/scanner', label: 'Scanner', isAdmin: true }] : []),
+    ...(user?.role === 'admin' || user?.role === 'superadmin' ? [{ href: '/admin', label: 'Admin', isAdmin: true }] : []),
   ];
 
   return (
@@ -83,7 +95,7 @@ export default function Navbar() {
         transition: 'all 300ms ease',
       }}
     >
-      <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px' }}>
+      <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 16px', width: '100%', boxSizing: 'border-box' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 68 }}>
 
           {/* Logo */}
@@ -105,8 +117,9 @@ export default function Navbar() {
             </div>
           </Link>
 
-          {/* Desktop Nav */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} className="hidden md:flex">
+          {/* Desktop Nav - hidden on mobile */}
+          {!isMobile && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {navLinks.map(link => (
               <Link key={link.href} href={link.href} style={{
                 textDecoration: 'none',
@@ -155,7 +168,7 @@ export default function Navbar() {
                   color: 'var(--text-secondary)',
                 }}>
                   {user.name.split(' ')[0]}
-                  {user.role === 'admin' && <span style={{ color: 'var(--gold)', marginLeft: 6, fontSize: 11 }}>ADMIN</span>}
+                  {(user.role === 'admin' || user.role === 'superadmin') && <span style={{ color: 'var(--gold)', marginLeft: 6, fontSize: 11 }}>{user.role === 'superadmin' ? 'SUPERADMIN' : 'ADMIN'}</span>}
                 </div>
                 <button onClick={handleLogout} className="btn-ghost" style={{ padding: '8px 16px', fontSize: 13 }}>
                   Logout
@@ -168,9 +181,11 @@ export default function Navbar() {
               </div>
             )}
           </div>
+          )}
 
-          {/* Mobile: theme + hamburger */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} className="flex md:hidden">
+          {/* Mobile: theme + hamburger - hidden on desktop */}
+          {isMobile && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <button onClick={toggleTheme} style={{
               width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center',
               background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8,
@@ -189,9 +204,11 @@ export default function Navbar() {
               {menuOpen ? '✕' : '≡'}
             </button>
           </div>
+          )}
         </div>
 
-        {/* Mobile Menu */}
+        {/* Mobile Menu - only shows when isMobile && menuOpen */}
+        {isMobile && (
         <AnimatePresence>
           {menuOpen && (
             <motion.div
@@ -199,41 +216,52 @@ export default function Navbar() {
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
               style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                right: 0,
+                background: 'var(--bg-primary)',
                 borderTop: '1px solid var(--border)',
+                borderBottom: '1px solid var(--border)',
                 paddingBottom: 16,
                 overflow: 'hidden',
+                zIndex: 99,
+                maxHeight: 'calc(100vh - 68px)',
+                overflowY: 'auto',
               }}
             >
-              {navLinks.map(link => (
-                <Link key={link.href} href={link.href}
-                  onClick={() => setMenuOpen(false)}
-                  style={{
-                    display: 'block', padding: '12px 4px',
-                    color: link.isAdmin ? 'var(--gold)' : 'var(--text-secondary)',
-                    textDecoration: 'none', fontSize: 15, fontWeight: 500,
-                    borderBottom: '1px solid var(--border)',
-                  }}
-                >
-                  {link.label}
-                </Link>
-              ))}
-              {user ? (
-                <button onClick={handleLogout} style={{
-                  display: 'block', width: '100%', textAlign: 'left',
-                  padding: '12px 4px', color: '#f87171', fontSize: 15,
-                  background: 'none', border: 'none', cursor: 'pointer', marginTop: 4,
-                }}>
-                  Logout
-                </button>
-              ) : (
-                <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                  
-                  <Link href="/login" className="btn-gold" onClick={() => setMenuOpen(false)} style={{ flex: 1, justifyContent: 'center' }}>Sign In</Link>
-                </div>
-              )}
+              <div style={{ padding: '0 16px' }}>
+                {navLinks.map(link => (
+                  <Link key={link.href} href={link.href}
+                    onClick={() => setMenuOpen(false)}
+                    style={{
+                      display: 'block', padding: '14px 8px',
+                      color: link.isAdmin ? 'var(--gold)' : 'var(--text-secondary)',
+                      textDecoration: 'none', fontSize: 15, fontWeight: 500,
+                      borderBottom: '1px solid var(--border)',
+                    }}
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+                {user ? (
+                  <button onClick={handleLogout} style={{
+                    display: 'block', width: '100%', textAlign: 'left',
+                    padding: '14px 8px', color: '#f87171', fontSize: 15,
+                    background: 'none', border: 'none', cursor: 'pointer', marginTop: 4,
+                  }}>
+                    Logout
+                  </button>
+                ) : (
+                  <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                    <Link href="/login" className="btn-gold" onClick={() => setMenuOpen(false)} style={{ flex: 1, justifyContent: 'center' }}>Sign In</Link>
+                  </div>
+                )}
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
+        )}
       </div>
     </nav>
   );

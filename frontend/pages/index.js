@@ -42,7 +42,7 @@ export default function Home() {
         <Navbar />
 
         {/* ── Hero ──────────────────────────────────────────────────── */}
-        <section style={{ position: 'relative', overflow: 'hidden', padding: '96px 24px 80px' }}>
+        <section style={{ position: 'relative', overflow: 'hidden', padding: '60px 24px 60px' }}>
           {/* Background texture */}
           <div style={{
             position: 'absolute', inset: 0, zIndex: 0,
@@ -149,7 +149,7 @@ export default function Home() {
 
           {/* Grid */}
           {loading ? (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 24 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 20 }}>
               {[...Array(6)].map((_, i) => (
                 <div key={i} style={{ borderRadius: 16, overflow: 'hidden', border: '1px solid var(--border)' }}>
                   <div className="skeleton" style={{ height: 220 }} />
@@ -170,7 +170,7 @@ export default function Home() {
               {search && <p style={{ fontSize: 14 }}>Try a different search term</p>}
             </motion.div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 24 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 20 }}>
               {filtered.map((event, i) => (
                 <EventCard key={event._id} event={event} index={i} />
               ))}

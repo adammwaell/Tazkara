@@ -53,7 +53,7 @@ export default function EventCard({ event, index = 0 }) {
             ) : (
               <div style={{
                 width: '100%', height: '100%',
-                background: 'linear-gradient(135deg, #1a1a14 0%, #2a2a1e 50%, #1a1a14 100%)',
+                background: 'linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-card) 50%, var(--bg-secondary) 100%)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 64, opacity: 0.4,
               }}>🎵</div>
@@ -62,13 +62,13 @@ export default function EventCard({ event, index = 0 }) {
             {/* Gradient overlay */}
             <div style={{
               position: 'absolute', inset: 0,
-              background: 'linear-gradient(to top, rgba(10,10,8,0.9) 0%, transparent 60%)',
+              background: 'linear-gradient(to top, rgba(10,10,8,0.85) 0%, transparent 60%)',
             }} />
 
             {/* Date badge */}
             <div style={{
               position: 'absolute', top: 14, left: 14,
-              background: 'rgba(10,10,8,0.85)',
+              background: 'var(--bg-card)',
               backdropFilter: 'blur(12px)',
               border: '1px solid var(--border)',
               borderRadius: 10,
@@ -84,7 +84,8 @@ export default function EventCard({ event, index = 0 }) {
             {isSoldOut && (
               <div style={{
                 position: 'absolute', inset: 0,
-                background: 'rgba(10,10,8,0.7)',
+                background: 'var(--bg-primary)',
+                opacity: 0.75,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
                 <span className="badge-red" style={{ fontSize: 13, padding: '6px 18px', letterSpacing: '0.12em' }}>
@@ -134,7 +135,7 @@ export default function EventCard({ event, index = 0 }) {
                   From
                 </div>
                 <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--gold)', fontFamily: 'DM Sans, sans-serif' }}>
-                  ${minPrice}
+                  EGP {minPrice}
                 </div>
               </div>
               {!isSoldOut && (

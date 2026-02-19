@@ -94,9 +94,9 @@ export default function Signup() {
               background: 'var(--bg-card)',
               border: '1px solid var(--border)',
               borderRadius: 22,
-              padding: '36px 32px',
+              padding: '32px 24px',
               boxShadow: '0 16px 56px rgba(0,0,0,0.45)',
-            }}>
+            }} className="login-card">
               <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
                 <div>

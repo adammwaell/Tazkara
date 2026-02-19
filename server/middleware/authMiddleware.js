@@ -26,18 +26,26 @@ const protect = async (req, res, next) => {
 };
 
 const adminOnly = (req, res, next) => {
-  if (req.user?.role !== 'admin') {
+  if (req.user?.role !== 'admin' && req.user?.role !== 'superadmin') {
     return res.status(403).json({ success: false, message: 'Admin access required' });
+  }
+  next();
+};
+
+// Super Admin only - for sensitive operations
+const superadminOnly = (req, res, next) => {
+  if (req.user?.role !== 'superadmin') {
+    return res.status(403).json({ success: false, message: 'Super Admin access required' });
   }
   next();
 };
 
 // Allows admin OR users with canScan permission
 const scannerAccess = (req, res, next) => {
-  if (req.user?.role !== 'admin' && req.user?.permissions?.canScan !== true) {
+  if (req.user?.role !== 'admin' && req.user?.role !== 'superadmin' && req.user?.permissions?.canScan !== true) {
     return res.status(403).json({ success: false, message: 'Scanner access denied' });
   }
   next();
 };
 
-module.exports = { protect, adminOnly, scannerAccess };
+module.exports = { protect, adminOnly, scannerAccess, superadminOnly };
